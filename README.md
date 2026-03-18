@@ -322,6 +322,89 @@ Built at the University of Ottawa.
 
 ---
 
+---
+
+## 🛠️ For Developers
+
+### How the project is structured
+
+| What you want to change | Where to look |
+|---|---|
+| **UI layout, styling, pages** | `frontend/index.html` — everything is in one file (HTML + CSS + JS) |
+| **Allen's personality and prompt** | `backend/ai/allen.py` — edit `SYSTEM_PROMPT` to change how Allen responds |
+| **Route scoring logic** | `backend/routing/scorer.py` — PostGIS queries that score each route segment |
+| **Route weight presets** | `backend/routing/weights.py` — the safety/access/environ/comfort defaults |
+| **API endpoints** | `backend/app.py` — all Flask routes are here |
+| **Database tables** | `sql/01_schema.sql` — add new tables here |
+| **Autocomplete locations** | `frontend/index.html` — search for `const LOCS` and add entries to the dictionary |
+| **Ottawa data sources** | `backend/ingestion/fetch_layers.py` — URLs for open data downloads |
+
+### Making changes
+
+**Frontend:** Edit `frontend/index.html` and refresh your browser. That's it — no build step, no compilation.
+
+**Backend:** Flask runs in debug mode, so when you save any `.py` file the server auto-restarts. You'll see `* Restarting with stat` in your terminal. If you change `allen.py`, the new prompt takes effect on the next question you ask Allen.
+
+**Database:** If you change `sql/01_schema.sql`, you need to reset the database for it to take effect:
+```bash
+docker compose down -v
+docker compose up -d postgres
+```
+
+### Git workflow
+
+1. Fork the repo to your own GitHub account
+2. Create a branch for your feature: `git checkout -b my-feature`
+3. Make your changes and test locally
+4. Commit and push: `git push origin my-feature`
+5. Open a Pull Request back to the main repo
+
+### Useful commands
+```bash
+# Start everything (after initial setup is done)
+docker compose up -d postgres          # start database
+cd backend && source venv/Scripts/activate  # Windows
+cd backend && source venv/bin/activate      # Mac/Linux
+python app.py                          # start server → http://localhost:5001
+
+# Reset database (if you changed schema or something is broken)
+docker compose down -v
+docker compose up -d postgres
+
+# Test if database is working
+docker exec allways_postgres psql -U allways -d allways_db -c "\dt"
+
+# Test if Allen is working
+curl -X POST http://localhost:5001/api/allen \
+  -H "Content-Type: application/json" \
+  -d "{\"message\": \"safest route from Rideau Centre to uOttawa\"}"
+
+# Warm up Allen (do this once after starting your computer)
+ollama run mistral "say hello"
+# then type /bye to exit
+```
+
+### Adding a new API endpoint
+
+If you need to add a new endpoint, follow this pattern in `backend/app.py`:
+```python
+@app.route('/api/your-endpoint', methods=['POST'])
+def your_endpoint():
+    body = request.get_json()
+    # your logic here
+    return jsonify({'result': 'something'})
+```
+
+The frontend can call it with:
+```javascript
+var r = await fetch(API_BASE + '/api/your-endpoint', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ key: 'value' })
+});
+var d = await r.json();
+```
+
 ## 📄 License
 
 This project is for educational purposes as part of university coursework.
