@@ -1,0 +1,1206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>AllWays Ottawa</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+:root{
+  --bg:#1a1a22;--panel:#222230;--card:#28283a;--border:#3a3a50;
+  --text:#e8e8f0;--muted:#7a7a9a;
+  --safety:#f5c842;--access:#4ab3e8;--environ:#5dd87a;
+  --nav-h:62px;--top-h:52px;--phone-w:390px;--phone-h:720px;
+  --scale:0.72;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+
+/* ── PHONE SHELL ── */
+body{background:#181820;display:flex;align-items:flex-start;justify-content:center;padding:16px 0 24px;min-height:100vh;font-family:'Syne',sans-serif;}
+.phone-wrap{
+  width:calc(var(--phone-w) * var(--scale));
+  height:calc(var(--phone-h) * var(--scale));
+  flex-shrink:0;
+}
+.phone{
+  width:var(--phone-w);height:var(--phone-h);
+  background:var(--bg);border-radius:44px;
+  box-shadow:0 0 0 10px #2a2a36,0 0 0 12px #353545,0 30px 80px rgba(0,0,0,0.8);
+  overflow:hidden;display:flex;flex-direction:column;position:relative;
+  transform:scale(var(--scale));
+  transform-origin:top left;
+}
+/* notch */
+.phone::before{content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);width:120px;height:30px;background:#2a2a36;border-radius:0 0 20px 20px;z-index:999;}
+
+/* ── MODE BADGE ── */
+.mode-badge{
+  position:fixed;top:10px;right:10px;z-index:9999;
+  padding:5px 12px;border-radius:20px;font-family:'Space Mono',monospace;
+  font-size:0.65rem;font-weight:700;letter-spacing:0.05em;
+  backdrop-filter:blur(8px);transition:all 0.4s;cursor:default;
+}
+.mode-badge.connected{background:rgba(93,216,122,0.15);color:var(--environ);border:1px solid rgba(93,216,122,0.3);}
+.mode-badge.demo{background:rgba(245,200,66,0.15);color:var(--safety);border:1px solid rgba(245,200,66,0.3);}
+
+/* ── TOP BAR ── */
+.topbar{
+  height:var(--top-h);background:var(--panel);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 18px;gap:10px;
+  flex-shrink:0;z-index:300;padding-top:8px;
+}
+.menu-btn{width:38px;height:38px;border-radius:10px;background:var(--card);border:1px solid var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;flex-shrink:0;transition:background 0.2s;}
+.menu-btn:hover{background:var(--border);}
+.menu-btn span{display:block;width:16px;height:2px;background:var(--text);border-radius:2px;transition:all 0.25s;}
+.menu-btn.open span:nth-child(1){transform:translateY(6px) rotate(45deg);}
+.menu-btn.open span:nth-child(2){opacity:0;}
+.menu-btn.open span:nth-child(3){transform:translateY(-6px) rotate(-45deg);}
+.app-title{flex:1;text-align:center;font-size:1rem;font-weight:800;letter-spacing:0.06em;}
+.app-title em{color:var(--access);font-style:normal;}
+.go-btn{background:var(--access);border:none;border-radius:10px;padding:8px 14px;color:#05080d;font-family:'Syne',sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer;flex-shrink:0;}
+.go-btn:active{opacity:0.7;}
+
+/* ── PAGES CONTAINER ── */
+.pages{flex:1;position:relative;overflow:hidden;display:flex;flex-direction:column;}
+.page{position:absolute;inset:0;display:flex;flex-direction:column;background:var(--bg);transition:transform 0.38s cubic-bezier(0.4,0,0.2,1),opacity 0.38s;opacity:0;pointer-events:none;transform:translateX(100%);}
+.page.active{opacity:1;pointer-events:all;transform:translateX(0);}
+.page.exit-left{transform:translateX(-40%);opacity:0;}
+
+/* ── PAGE: MAP ── */
+.search-bar{background:var(--panel);border-bottom:1px solid var(--border);padding:10px 14px;display:flex;flex-direction:column;gap:7px;flex-shrink:0;}
+.sfield{display:flex;align-items:center;gap:9px;background:var(--card);border:1.5px solid var(--border);border-radius:11px;padding:0 13px;height:40px;transition:border-color 0.2s;}
+.sfield:focus-within{border-color:var(--access);}
+.sdot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.sdot-from{background:var(--access);}
+.sdot-to{background:var(--safety);}
+.sfield input{flex:1;background:none;border:none;color:var(--text);font-family:'Space Mono',monospace;font-size:0.76rem;outline:none;}
+.sfield input::placeholder{color:var(--muted);}
+
+.map-wrap{flex:1;position:relative;overflow:hidden;min-height:0;}
+#map{width:100%;height:100%;filter:brightness(1.45) contrast(0.92);}
+
+.route-pills{position:absolute;top:10px;left:10px;display:flex;flex-direction:column;gap:6px;z-index:200;}
+.rpill{display:flex;align-items:center;gap:7px;padding:6px 11px;border-radius:28px;border:1.5px solid;font-size:0.7rem;font-weight:700;cursor:pointer;background:rgba(26,26,34,0.88);backdrop-filter:blur(8px);transition:opacity 0.2s;white-space:nowrap;user-select:none;}
+.rpill-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+.rpill-safety{border-color:rgba(245,200,66,0.6);color:var(--safety);}
+.rpill-access{border-color:rgba(74,179,232,0.6);color:var(--access);}
+.rpill-environ{border-color:rgba(93,216,122,0.6);color:var(--environ);}
+.rpill-dot-safety{background:var(--safety);}
+.rpill-dot-access{background:var(--access);}
+.rpill-dot-environ{background:var(--environ);}
+.rpill.off{opacity:0.28;}
+
+.time-badges{position:absolute;bottom:12px;left:10px;right:10px;display:none;gap:6px;z-index:200;}
+.time-badges.show{display:flex;}
+.tbadge{flex:1;background:rgba(26,26,34,0.92);backdrop-filter:blur(10px);border-radius:11px;padding:9px 6px;border:1.5px solid var(--border);display:flex;flex-direction:column;align-items:center;gap:2px;transition:opacity 0.2s;}
+.tbadge.off{opacity:0.2;}
+.tbadge-lbl{font-size:0.55rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;}
+.tbadge-val{font-family:'Space Mono',monospace;font-size:1rem;font-weight:700;}
+.tbadge-unit{font-family:'Space Mono',monospace;font-size:0.58rem;color:var(--muted);}
+.tbadge-safety .tbadge-lbl,.tbadge-safety .tbadge-val{color:var(--safety);}
+.tbadge-access .tbadge-lbl,.tbadge-access .tbadge-val{color:var(--access);}
+.tbadge-environ .tbadge-lbl,.tbadge-environ .tbadge-val{color:var(--environ);}
+
+/* Score badges (backend mode) */
+.score-badges{position:absolute;bottom:52px;left:10px;right:10px;display:none;gap:6px;z-index:200;}
+.score-badges.show{display:flex;}
+.sbadge{flex:1;background:rgba(26,26,34,0.92);backdrop-filter:blur(10px);border-radius:11px;padding:7px 6px;border:1.5px solid var(--border);display:flex;flex-direction:column;align-items:center;gap:1px;}
+.sbadge-lbl{font-size:0.5rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);}
+.sbadge-val{font-family:'Space Mono',monospace;font-size:0.8rem;font-weight:700;color:var(--text);}
+
+.map-loading{position:absolute;inset:0;background:rgba(26,26,34,0.7);display:none;align-items:center;justify-content:center;z-index:500;}
+.map-loading.on{display:flex;}
+.spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--access);border-radius:50%;animation:spin 0.7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* ── PAGE: HOME ── */
+.home-page{padding:20px 18px;overflow-y:auto;gap:16px;display:flex;flex-direction:column;}
+.home-hero{background:linear-gradient(135deg,#101828 0%,#0d1a14 100%);border-radius:18px;padding:22px 18px;border:1px solid var(--border);text-align:center;}
+.home-hero-icon{font-size:2.8rem;margin-bottom:10px;}
+.home-hero-title{font-size:1.15rem;font-weight:800;margin-bottom:6px;}
+.home-hero-title em{color:var(--access);font-style:normal;}
+.home-hero-sub{font-family:'Space Mono',monospace;font-size:0.72rem;color:var(--muted);line-height:1.6;}
+.home-cards{display:flex;flex-direction:column;gap:10px;}
+.home-card{background:var(--panel);border:1.5px solid var(--border);border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:14px;cursor:pointer;transition:border-color 0.2s;}
+.home-card:hover{border-color:var(--access);}
+.home-card-icon{font-size:1.4rem;width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.hci-safety{background:rgba(245,200,66,0.1);}
+.hci-access{background:rgba(74,179,232,0.1);}
+.hci-environ{background:rgba(93,216,122,0.1);}
+.home-card-name{font-size:0.88rem;font-weight:700;margin-bottom:2px;}
+.home-card-desc{font-family:'Space Mono',monospace;font-size:0.66rem;color:var(--muted);line-height:1.4;}
+.hcn-safety{color:var(--safety);}
+.hcn-access{color:var(--access);}
+.hcn-environ{color:var(--environ);}
+.home-section-title{font-size:0.65rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;}
+
+/* ── PAGE: ALLEN AI ── */
+.allen-page{display:flex;flex-direction:column;overflow:hidden;}
+.allen-header{background:linear-gradient(135deg,#0d1a28,#0a1a10);padding:20px 18px 16px;flex-shrink:0;border-bottom:1px solid var(--border);}
+.allen-avatar{width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#1a2a3a,#0d1a28);border:2px solid var(--access);display:flex;align-items:center;justify-content:center;font-size:1.5rem;margin-bottom:10px;box-shadow:0 0 18px rgba(74,179,232,0.3);}
+.allen-name{font-size:1rem;font-weight:800;margin-bottom:3px;}
+.allen-name em{color:var(--access);font-style:normal;}
+.allen-tagline{font-family:'Space Mono',monospace;font-size:0.7rem;color:var(--muted);}
+.allen-body{flex:1;padding:14px 16px;overflow-y:auto;display:flex;flex-direction:column;gap:12px;}
+.allen-section-lbl{font-size:0.62rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;}
+.ai-chips{display:flex;flex-wrap:wrap;gap:7px;}
+.ai-chip{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:7px 13px;font-family:'Space Mono',monospace;font-size:0.7rem;color:var(--muted);cursor:pointer;transition:all 0.15s;}
+.ai-chip:hover,.ai-chip:active{border-color:var(--access);color:var(--access);background:rgba(74,179,232,0.07);}
+.ai-bubble{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;font-family:'Space Mono',monospace;font-size:0.74rem;color:var(--text);line-height:1.75;min-height:88px;}
+.ai-bubble.thinking{color:var(--muted);font-style:italic;}
+.ai-input-row{display:flex;gap:8px;flex-shrink:0;padding:12px 16px;background:var(--panel);border-top:1px solid var(--border);}
+.ai-input{flex:1;background:var(--card);border:1.5px solid var(--border);border-radius:10px;padding:9px 12px;color:var(--text);font-family:'Space Mono',monospace;font-size:0.74rem;outline:none;transition:border-color 0.2s;}
+.ai-input:focus{border-color:var(--access);}
+.ai-input::placeholder{color:var(--muted);}
+.ai-send{background:var(--access);border:none;border-radius:10px;padding:9px 14px;color:#050d12;font-family:'Syne',sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer;white-space:nowrap;}
+.ai-send:active{opacity:0.7;}
+
+/* ── PAGE: FEEDBACK ── */
+.feedback-page{display:flex;flex-direction:column;overflow:hidden;}
+.feedback-header{padding:20px 18px 16px;flex-shrink:0;background:var(--panel);border-bottom:1px solid var(--border);}
+.feedback-title{font-size:1rem;font-weight:800;margin-bottom:4px;}
+.feedback-sub{font-family:'Space Mono',monospace;font-size:0.7rem;color:var(--muted);}
+.feedback-body{flex:1;padding:16px 18px 20px;overflow-y:auto;display:flex;flex-direction:column;gap:16px;}
+.fb-label{font-size:0.65rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
+.fb-stars{display:flex;gap:10px;justify-content:center;padding:6px 0;}
+.fb-star{font-size:2.2rem;cursor:pointer;filter:grayscale(1) opacity(0.3);transition:all 0.15s;user-select:none;}
+.fb-star:active{transform:scale(1.25);}
+.fb-star.lit{filter:none;transform:scale(1.1);}
+.fb-category{display:flex;flex-direction:column;gap:8px;}
+.fb-cat-btn{background:var(--card);border:1.5px solid var(--border);border-radius:11px;padding:11px 14px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:all 0.2s;}
+.fb-cat-btn.sel-safety{border-color:var(--safety);background:rgba(245,200,66,0.07);}
+.fb-cat-btn.sel-access{border-color:var(--access);background:rgba(74,179,232,0.07);}
+.fb-cat-btn.sel-environ{border-color:var(--environ);background:rgba(93,216,122,0.07);}
+.fb-cat-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+.fb-cat-name{font-size:0.82rem;font-weight:600;}
+.fb-field-group{display:flex;flex-direction:column;gap:6px;}
+.fb-field-label{font-size:0.65rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);}
+.fb-input{background:var(--card);border:1.5px solid var(--border);border-radius:11px;padding:11px 13px;color:var(--text);font-family:'Space Mono',monospace;font-size:0.76rem;outline:none;width:100%;transition:border-color 0.2s;}
+.fb-input:focus{border-color:var(--access);}
+.fb-input::placeholder{color:var(--muted);}
+.fb-textarea{background:var(--card);border:1.5px solid var(--border);border-radius:11px;padding:11px 13px;color:var(--text);font-family:'Space Mono',monospace;font-size:0.76rem;outline:none;width:100%;resize:none;transition:border-color 0.2s;line-height:1.6;}
+.fb-textarea:focus{border-color:var(--access);}
+.fb-textarea::placeholder{color:var(--muted);}
+.fb-submit{background:var(--environ);border:none;border-radius:12px;padding:14px;color:#04180a;font-family:'Syne',sans-serif;font-weight:800;font-size:0.9rem;cursor:pointer;width:100%;letter-spacing:0.03em;}
+.fb-submit:active{opacity:0.8;}
+.fb-success{display:none;flex-direction:column;align-items:center;justify-content:center;padding:30px 20px;text-align:center;gap:14px;flex:1;}
+.fb-success.show{display:flex;}
+.fb-success-icon{font-size:3rem;}
+.fb-success-title{font-size:1rem;font-weight:800;color:var(--environ);}
+.fb-success-sub{font-family:'Space Mono',monospace;font-size:0.72rem;color:var(--muted);line-height:1.6;}
+.fb-again-btn{background:var(--card);border:1.5px solid var(--border);border-radius:11px;padding:11px 22px;color:var(--text);font-family:'Syne',sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer;}
+
+/* ── FEATURES SHEET ── */
+.backdrop{position:absolute;inset:0;background:rgba(0,0,0,0.55);z-index:400;display:none;backdrop-filter:blur(2px);}
+.backdrop.on{display:block;}
+.sheet{position:absolute;bottom:0;left:0;right:0;background:var(--panel);border-top:1px solid var(--border);border-radius:20px 20px 0 0;z-index:450;transform:translateY(110%);transition:transform 0.36s cubic-bezier(0.32,0.72,0,1);max-height:78%;display:flex;flex-direction:column;}
+.sheet.on{transform:translateY(0);}
+.sheet-handle{width:36px;height:4px;background:var(--border);border-radius:10px;margin:11px auto 0;flex-shrink:0;}
+.sheet-head{display:flex;align-items:center;justify-content:space-between;padding:13px 18px 11px;flex-shrink:0;border-bottom:1px solid var(--border);}
+.sheet-title{font-size:0.95rem;font-weight:800;}
+.sheet-close{width:30px;height:30px;border-radius:50%;background:var(--card);border:1px solid var(--border);color:var(--muted);font-size:0.9rem;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+.sheet-body{padding:14px 18px 22px;overflow-y:auto;flex:1;}
+.frows{display:flex;flex-direction:column;gap:9px;}
+.frow{display:flex;align-items:center;gap:13px;padding:13px;background:var(--card);border-radius:13px;border:1.5px solid var(--border);cursor:pointer;transition:all 0.2s;user-select:none;}
+.frow.on-safety{border-color:rgba(245,200,66,0.5);background:rgba(245,200,66,0.05);}
+.frow.on-access{border-color:rgba(74,179,232,0.5);background:rgba(74,179,232,0.05);}
+.frow.on-environ{border-color:rgba(93,216,122,0.5);background:rgba(93,216,122,0.05);}
+.frow-ico{width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0;}
+.frow-ico-safety{background:rgba(245,200,66,0.1);}
+.frow-ico-access{background:rgba(74,179,232,0.1);}
+.frow-ico-environ{background:rgba(93,216,122,0.1);}
+.frow-info{flex:1;}
+.frow-name{font-size:0.86rem;font-weight:700;margin-bottom:2px;}
+.frow-name-safety{color:var(--safety);}
+.frow-name-access{color:var(--access);}
+.frow-name-environ{color:var(--environ);}
+.frow-desc{font-family:'Space Mono',monospace;font-size:0.65rem;color:var(--muted);line-height:1.4;}
+.tsw{width:44px;height:24px;background:var(--border);border-radius:12px;position:relative;flex-shrink:0;transition:background 0.2s;}
+.tsw::after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:var(--muted);transition:transform 0.2s,background 0.2s;}
+.frow.on-safety .tsw{background:rgba(245,200,66,0.3);}
+.frow.on-safety .tsw::after{transform:translateX(20px);background:var(--safety);}
+.frow.on-access .tsw{background:rgba(74,179,232,0.3);}
+.frow.on-access .tsw::after{transform:translateX(20px);background:var(--access);}
+.frow.on-environ .tsw{background:rgba(93,216,122,0.3);}
+.frow.on-environ .tsw::after{transform:translateX(20px);background:var(--environ);}
+
+/* ── ALLEN FAB ── */
+.allen-fab{position:absolute;bottom:calc(var(--nav-h) + 14px);right:16px;z-index:350;width:54px;height:54px;border-radius:50%;background:linear-gradient(135deg,#1a2a3a,#0d1a28);border:2px solid var(--access);box-shadow:0 4px 18px rgba(74,179,232,0.4);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1.4rem;transition:transform 0.2s,box-shadow 0.2s;user-select:none;}
+.allen-fab:hover{transform:scale(1.06);box-shadow:0 6px 24px rgba(74,179,232,0.55);}
+.allen-fab:active{transform:scale(0.92);}
+.fab-ring{position:absolute;inset:-5px;border-radius:50%;border:2px solid var(--access);opacity:0;animation:fab-pulse 2.4s ease-out infinite;}
+@keyframes fab-pulse{0%{transform:scale(1);opacity:0.5;}100%{transform:scale(1.5);opacity:0;}}
+
+/* ── BOTTOM NAV ── */
+.bottom-nav{height:var(--nav-h);background:var(--panel);border-top:1px solid var(--border);display:flex;flex-shrink:0;z-index:300;}
+.nav-btn{flex:1;background:none;border:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;color:var(--muted);font-family:'Syne',sans-serif;font-size:0.58rem;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;transition:color 0.15s;position:relative;}
+.nav-btn:active{opacity:0.7;}
+.nav-btn.active{color:var(--text);}
+.nav-icon{font-size:1.2rem;}
+.nav-btn.active::after{content:'';position:absolute;top:5px;left:50%;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;background:var(--access);}
+
+/* ── TOAST ── */
+#toast{position:absolute;bottom:calc(var(--nav-h)+70px);left:50%;transform:translateX(-50%) translateY(8px);background:var(--card);border:1px solid var(--border);border-radius:10px;padding:9px 16px;font-family:'Space Mono',monospace;font-size:0.74rem;color:var(--text);z-index:999;white-space:nowrap;opacity:0;transition:opacity 0.3s,transform 0.3s;pointer-events:none;}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+/* ── AUTOCOMPLETE ── */
+.ac-list{position:absolute;top:100%;left:0;right:0;background:var(--panel);border:1px solid var(--border);border-radius:0 0 11px 11px;max-height:140px;overflow-y:auto;z-index:600;display:none;}
+.ac-list.open{display:block;}
+.ac-item{padding:9px 14px;font-family:'Space Mono',monospace;font-size:0.72rem;color:var(--muted);cursor:pointer;transition:background 0.1s;}
+.ac-item:hover,.ac-item.sel{background:var(--card);color:var(--text);}
+.sfield{position:relative;}
+
+/* ── LAYER TOGGLES (in features sheet) ── */
+.layer-section{margin-top:14px;padding-top:12px;border-top:1px solid var(--border);}
+.layer-section-title{font-size:0.62rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
+.layer-chips{display:flex;flex-wrap:wrap;gap:6px;}
+.layer-chip{background:var(--card);border:1.5px solid var(--border);border-radius:18px;padding:6px 12px;font-family:'Space Mono',monospace;font-size:0.62rem;color:var(--muted);cursor:pointer;transition:all 0.15s;user-select:none;}
+.layer-chip.on{border-color:rgba(74,179,232,0.5);color:var(--access);background:rgba(74,179,232,0.07);}
+.layer-chip .lchip-dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:5px;background:var(--muted);transition:background 0.15s;}
+.layer-chip.on .lchip-dot{background:var(--access);}
+
+/* ── ALLEN APPLY BUTTON ── */
+.ai-apply-row{display:none;padding:0 16px 10px;gap:8px;}
+.ai-apply-row.show{display:flex;}
+.ai-apply-btn{flex:1;background:var(--environ);border:none;border-radius:10px;padding:10px;color:#04180a;font-family:'Syne',sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer;text-align:center;transition:opacity 0.2s;}
+.ai-apply-btn:active{opacity:0.7;}
+.ai-view-btn{flex:1;background:var(--card);border:1.5px solid var(--border);border-radius:10px;padding:10px;color:var(--text);font-family:'Syne',sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer;text-align:center;transition:border-color 0.2s;}
+.ai-view-btn:active{border-color:var(--access);}
+
+/* Leaflet */
+.leaflet-popup-content-wrapper{background:var(--card)!important;color:var(--text)!important;border:1px solid var(--border)!important;border-radius:12px!important;font-family:'Space Mono',monospace!important;font-size:0.76rem!important;}
+.leaflet-popup-tip{background:var(--card)!important;}
+.leaflet-control-zoom a{background:var(--card)!important;color:var(--text)!important;border-color:var(--border)!important;}
+::-webkit-scrollbar{width:3px;}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+</style>
+</head>
+<body>
+
+<!-- Mode indicator -->
+<div class="mode-badge demo" id="mode-badge">DEMO MODE</div>
+
+<div class="phone-wrap">
+<div class="phone">
+
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <button class="menu-btn" id="menu-btn"><span></span><span></span><span></span></button>
+    <div class="app-title">All<em>Ways</em> Ottawa</div>
+    <button class="go-btn" id="go-btn">Go</button>
+  </div>
+
+  <!-- PAGES -->
+  <div class="pages" id="pages">
+
+    <!-- HOME PAGE -->
+    <div class="page active" id="page-home">
+      <div class="home-page">
+        <div class="home-hero">
+          <div class="home-hero-icon">🗺️</div>
+          <div class="home-hero-title">All<em>Ways</em> Ottawa</div>
+          <div class="home-hero-sub">Smart navigation built for every Ottawan.<br>Choose your route by what matters to you.</div>
+        </div>
+        <div>
+          <div class="home-section-title">Route Types</div>
+          <div class="home-cards">
+            <div class="home-card" id="hc-safety">
+              <div class="home-card-icon hci-safety">🛡️</div>
+              <div class="home-card-text">
+                <div class="home-card-name hcn-safety">Safety Route</div>
+                <div class="home-card-desc">Well-lit streets, monitored corridors &amp; busy pedestrian zones</div>
+              </div>
+            </div>
+            <div class="home-card" id="hc-access">
+              <div class="home-card-icon hci-access">♿</div>
+              <div class="home-card-text">
+                <div class="home-card-name hcn-access">Accessibility Route</div>
+                <div class="home-card-desc">Sidewalk ramps, no stairs, OC Transpo accessible stops</div>
+              </div>
+            </div>
+            <div class="home-card" id="hc-environ">
+              <div class="home-card-icon hci-environ">🌿</div>
+              <div class="home-card-text">
+                <div class="home-card-name hcn-environ">Environmental Route</div>
+                <div class="home-card-desc">Parks, NCC Greenbelt &amp; low-emission corridors</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="font-family:'Space Mono',monospace;font-size:0.7rem;color:var(--muted);line-height:1.7;background:var(--card);border-radius:12px;padding:14px;border:1px solid var(--border);">
+          <strong style="color:var(--text);">How to use:</strong> Tap the Map tab, enter your start and destination, then press Go to see colour-coded routes. Toggle routes on/off with the pills on the map.
+        </div>
+      </div>
+    </div>
+
+    <!-- MAP PAGE -->
+    <div class="page" id="page-map">
+      <div class="search-bar">
+        <div class="sfield"><div class="sdot sdot-from"></div><input id="inp-from" type="text" placeholder="From: e.g. Rideau Centre" autocomplete="off"/><div class="ac-list" id="ac-from"></div></div>
+        <div class="sfield"><div class="sdot sdot-to"></div><input id="inp-to" type="text" placeholder="To: e.g. Parliament Hill" autocomplete="off"/><div class="ac-list" id="ac-to"></div></div>
+      </div>
+      <div class="map-wrap">
+        <div id="map"></div>
+        <div class="route-pills">
+          <div class="rpill rpill-safety" id="pill-safety"><div class="rpill-dot rpill-dot-safety"></div>Safety</div>
+          <div class="rpill rpill-access" id="pill-access"><div class="rpill-dot rpill-dot-access"></div>Access</div>
+          <div class="rpill rpill-environ" id="pill-environ"><div class="rpill-dot rpill-dot-environ"></div>Eco</div>
+        </div>
+        <div class="time-badges" id="time-badges">
+          <div class="tbadge tbadge-safety" id="badge-safety"><div class="tbadge-lbl">Safety</div><div class="tbadge-val" id="t-safety">--</div><div class="tbadge-unit">min</div></div>
+          <div class="tbadge tbadge-access" id="badge-access"><div class="tbadge-lbl">Access</div><div class="tbadge-val" id="t-access">--</div><div class="tbadge-unit">min</div></div>
+          <div class="tbadge tbadge-environ" id="badge-environ"><div class="tbadge-lbl">Eco</div><div class="tbadge-val" id="t-environ">--</div><div class="tbadge-unit">min</div></div>
+        </div>
+        <div class="score-badges" id="score-badges">
+          <div class="sbadge"><div class="sbadge-lbl">Score</div><div class="sbadge-val" id="s-safety">--</div></div>
+          <div class="sbadge"><div class="sbadge-lbl">Score</div><div class="sbadge-val" id="s-access">--</div></div>
+          <div class="sbadge"><div class="sbadge-lbl">Score</div><div class="sbadge-val" id="s-environ">--</div></div>
+        </div>
+        <div class="map-loading" id="map-loading"><div class="spinner"></div></div>
+      </div>
+    </div>
+
+    <!-- ALLEN PAGE -->
+    <div class="page allen-page" id="page-allen">
+      <div class="allen-header">
+        <div class="allen-avatar">🤖</div>
+        <div class="allen-name">Allen — <em>AI Assistant</em></div>
+        <div class="allen-tagline">Your smart Ottawa navigation companion</div>
+      </div>
+      <div class="allen-body">
+        <div>
+          <div class="allen-section-lbl">Quick Questions</div>
+          <div class="ai-chips">
+            <div class="ai-chip" id="chip-safest">Safest route tonight</div>
+            <div class="ai-chip" id="chip-wheelchair">Wheelchair friendly</div>
+            <div class="ai-chip" id="chip-greenery">Most greenery</div>
+            <div class="ai-chip" id="chip-ice">Avoid ice &amp; snow</div>
+            <div class="ai-chip" id="chip-transit">Accessible transit</div>
+            <div class="ai-chip" id="chip-quick">Quickest walk</div>
+          </div>
+        </div>
+        <div>
+          <div class="allen-section-lbl">Response</div>
+          <div class="ai-bubble" id="ai-bubble">Hi! I'm Allen. Tap a question above or type your own below. I can help with safety, accessibility, and eco-friendly routing across Ottawa.</div>
+        </div>
+      </div>
+      <div class="ai-apply-row" id="ai-apply-row">
+        <button class="ai-apply-btn" id="ai-apply">🗺️ Apply to Route</button>
+        <button class="ai-view-btn" id="ai-view-map">View Map</button>
+      </div>
+      <div class="ai-input-row">
+        <input class="ai-input" id="ai-input" type="text" placeholder="Ask Allen anything..." autocomplete="off"/>
+        <button class="ai-send" id="ai-send">Send</button>
+      </div>
+    </div>
+
+    <!-- FEEDBACK PAGE -->
+    <div class="page feedback-page" id="page-feedback">
+      <div class="feedback-header">
+        <div class="feedback-title">📝 Route Feedback</div>
+        <div class="feedback-sub">Help us improve AllWays Ottawa</div>
+      </div>
+      <div class="feedback-body" id="fb-form-body">
+        <div>
+          <div class="fb-label">Overall Rating</div>
+          <div class="fb-stars">
+            <div class="fb-star" data-n="1">⭐</div>
+            <div class="fb-star" data-n="2">⭐</div>
+            <div class="fb-star" data-n="3">⭐</div>
+            <div class="fb-star" data-n="4">⭐</div>
+            <div class="fb-star" data-n="5">⭐</div>
+          </div>
+        </div>
+        <div>
+          <div class="fb-label">Which route are you rating?</div>
+          <div class="fb-category">
+            <div class="fb-cat-btn" data-cat="safety"><div class="fb-cat-dot" style="background:var(--safety)"></div><span class="fb-cat-name" style="color:var(--safety)">Safety Route</span></div>
+            <div class="fb-cat-btn" data-cat="access"><div class="fb-cat-dot" style="background:var(--access)"></div><span class="fb-cat-name" style="color:var(--access)">Accessibility Route</span></div>
+            <div class="fb-cat-btn" data-cat="environ"><div class="fb-cat-dot" style="background:var(--environ)"></div><span class="fb-cat-name" style="color:var(--environ)">Environmental Route</span></div>
+          </div>
+        </div>
+        <div class="fb-field-group">
+          <div class="fb-field-label">Your Name (optional)</div>
+          <input class="fb-input" id="fb-name" type="text" placeholder="e.g. Alex"/>
+        </div>
+        <div class="fb-field-group">
+          <div class="fb-field-label">What went well?</div>
+          <textarea class="fb-textarea" id="fb-good" rows="2" placeholder="e.g. The route was very well-lit..."></textarea>
+        </div>
+        <div class="fb-field-group">
+          <div class="fb-field-label">What could be improved?</div>
+          <textarea class="fb-textarea" id="fb-improve" rows="2" placeholder="e.g. Some sidewalks were icy..."></textarea>
+        </div>
+        <div class="fb-field-group">
+          <div class="fb-field-label">Any other comments?</div>
+          <textarea class="fb-textarea" id="fb-other" rows="2" placeholder="Anything else on your mind..."></textarea>
+        </div>
+        <button class="fb-submit" id="fb-submit">Submit Feedback</button>
+      </div>
+      <div class="fb-success" id="fb-success">
+        <div class="fb-success-icon">✅</div>
+        <div class="fb-success-title">Thank you!</div>
+        <div class="fb-success-sub">Your feedback helps make AllWays Ottawa better for everyone in the city.</div>
+        <button class="fb-again-btn" id="fb-again">Submit Another</button>
+      </div>
+    </div>
+
+  </div><!-- /pages -->
+
+  <!-- ALLEN FAB -->
+  <div class="allen-fab" id="allen-fab"><div class="fab-ring"></div>🤖</div>
+
+  <!-- BACKDROP + FEATURES SHEET -->
+  <div class="backdrop" id="backdrop"></div>
+  <div class="sheet" id="sheet-features">
+    <div class="sheet-handle"></div>
+    <div class="sheet-head"><div class="sheet-title">Route Features</div><div class="sheet-close" id="close-features">✕</div></div>
+    <div class="sheet-body">
+      <div class="frows">
+        <div class="frow on-safety" id="frow-safety"><div class="frow-ico frow-ico-safety">🛡️</div><div class="frow-info"><div class="frow-name frow-name-safety">Safety</div><div class="frow-desc">Well-lit streets, monitored corridors &amp; busy pedestrian zones</div></div><div class="tsw"></div></div>
+        <div class="frow on-access" id="frow-access"><div class="frow-ico frow-ico-access">♿</div><div class="frow-info"><div class="frow-name frow-name-access">Accessibility</div><div class="frow-desc">Sidewalk ramps, no stairs, OC Transpo accessible stops</div></div><div class="tsw"></div></div>
+        <div class="frow on-environ" id="frow-environ"><div class="frow-ico frow-ico-environ">🌿</div><div class="frow-info"><div class="frow-name frow-name-environ">Environmental</div><div class="frow-desc">Parks, NCC Greenbelt &amp; low-emission corridors</div></div><div class="tsw"></div></div>
+      </div>
+      <div class="layer-section" id="layer-section" style="display:none;">
+        <div class="layer-section-title">Map Overlays</div>
+        <div class="layer-chips" id="layer-chips">
+          <div class="layer-chip" data-layer="parks_greenspace"><span class="lchip-dot"></span>Parks</div>
+          <div class="layer-chip" data-layer="sidewalks"><span class="lchip-dot"></span>Sidewalks</div>
+          <div class="layer-chip" data-layer="transit_stops"><span class="lchip-dot"></span>Transit</div>
+          <div class="layer-chip" data-layer="cycling_network"><span class="lchip-dot"></span>Cycling</div>
+          <div class="layer-chip" data-layer="benches"><span class="lchip-dot"></span>Benches</div>
+          <div class="layer-chip" data-layer="washrooms"><span class="lchip-dot"></span>Washrooms</div>
+          <div class="layer-chip" data-layer="libraries"><span class="lchip-dot"></span>Libraries</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BOTTOM NAV -->
+  <div class="bottom-nav">
+    <button class="nav-btn active" id="nav-home"><span class="nav-icon">🏠</span><span>Home</span></button>
+    <button class="nav-btn" id="nav-map"><span class="nav-icon">🗺️</span><span>Map</span></button>
+    <button class="nav-btn" id="nav-allen"><span class="nav-icon">🤖</span><span>Allen</span></button>
+    <button class="nav-btn" id="nav-feedback"><span class="nav-icon">❓</span><span>Feedback</span></button>
+  </div>
+
+  <div id="toast"></div>
+</div><!-- /phone -->
+</div><!-- /phone-wrap -->
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// CONFIG: Auto-detect backend or fall back to demo mode
+// ═══════════════════════════════════════════════════════════
+var API_BASE = '';  // relative to current host when served by Flask
+var backendConnected = false;
+
+// Weight presets that map to the backend's scoring system
+var WEIGHT_PRESETS = {
+  safety:  { safety: 0.9, accessibility: 0.6, environment: 0.4, comfort: 0.6 },
+  access:  { safety: 0.7, accessibility: 0.95, environment: 0.4, comfort: 0.8 },
+  environ: { safety: 0.5, accessibility: 0.5, environment: 0.95, comfort: 0.6 }
+};
+
+// Allen conversation history (for multi-turn when backend is connected)
+var allenHistory = [];
+
+// ── HEALTH CHECK: detect backend ──────────────────────────
+(async function checkBackend(){
+  try {
+    var r = await fetch(API_BASE + '/api/health', { signal: AbortSignal.timeout(2000) });
+    var d = await r.json();
+    if (d.status === 'ok') {
+      backendConnected = true;
+      var badge = document.getElementById('mode-badge');
+      badge.textContent = 'CONNECTED';
+      badge.className = 'mode-badge connected';
+      console.log('[AllWays] Backend connected — using real scoring + AI');
+      document.getElementById('layer-section').style.display = '';
+    }
+  } catch(e) {
+    console.log('[AllWays] No backend detected — running in demo mode');
+  }
+})();
+
+// ═══════════════════════════════════════════════════════════
+// MAP
+// ═══════════════════════════════════════════════════════════
+const map = L.map('map',{center:[45.4215,-75.6972],zoom:13,zoomControl:true});
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; <a href="https://carto.com" style="color:#4ab3e8">CARTO</a>',subdomains:'abcd',maxZoom:19}).addTo(map);
+map.setMaxBounds(L.latLngBounds([44.962,-76.355],[45.582,-75.246]));
+map.options.minZoom=11;
+
+const feat={safety:true,access:true,environ:true};
+let layers={},pins=[];
+
+// ── GEOCODING ─────────────────────────────────────────────
+// Local lookup table (always available as fast cache)
+const LOCS={
+  'parliament hill':[45.4236,-75.7009],'rideau centre':[45.4257,-75.6903],
+  'byward market':[45.4287,-75.6929],'gatineau park':[45.5200,-75.8500],
+  'university of ottawa':[45.4231,-75.6831],'carleton university':[45.3836,-75.6966],
+  'ottawa train station':[45.4161,-75.6459],'ottawa airport':[45.3225,-75.6692],
+  'lansdowne park':[45.4000,-75.6861],'kanata':[45.3068,-75.8983],
+  'nepean':[45.3497,-75.7528],'centretown':[45.4130,-75.6970],
+  'glebe':[45.3970,-75.6920],'alta vista':[45.3930,-75.6600],
+  'hintonburg':[45.4130,-75.7310],'westboro':[45.3970,-75.7580],
+  'vanier':[45.4330,-75.6660],'barrhaven':[45.2770,-75.7370],
+  'orleans':[45.4560,-75.5150],'stittsville':[45.2650,-75.9240]
+};
+
+async function geocode(name){
+  var k = name.toLowerCase().trim();
+
+  // 1. Check local cache first (instant)
+  if(LOCS[k]) return LOCS[k];
+  for(var key in LOCS){ if(key.includes(k)||k.includes(key)) return LOCS[key]; }
+
+  // 2. If backend connected, use our geocode endpoint
+  if(backendConnected){
+    try {
+      var r = await fetch(API_BASE + '/api/geocode?q=' + encodeURIComponent(name));
+      var d = await r.json();
+      if(d.lat) return [d.lat, d.lng];
+    } catch(e){ /* fall through to Nominatim */ }
+  }
+
+  // 3. Fallback: direct Nominatim
+  var r = await fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(name+', Ottawa, Ontario')+'&format=json&limit=1&viewbox=-76.355,44.962,-75.246,45.582&bounded=1');
+  var d = await r.json();
+  return d.length ? [parseFloat(d[0].lat), parseFloat(d[0].lon)] : null;
+}
+
+// ── AUTOCOMPLETE ─────────────────────────────────────────
+var locNames = Object.keys(LOCS).map(function(k){
+  return k.replace(/\b\w/g, function(c){ return c.toUpperCase(); });
+});
+
+function setupAutocomplete(inputId, listId){
+  var inp = document.getElementById(inputId);
+  var list = document.getElementById(listId);
+  var selIdx = -1;
+
+  inp.addEventListener('input', function(){
+    var q = this.value.toLowerCase().trim();
+    list.innerHTML = '';
+    selIdx = -1;
+    if(q.length < 1){ list.classList.remove('open'); return; }
+    var matches = locNames.filter(function(n){ return n.toLowerCase().includes(q); }).slice(0, 6);
+    if(!matches.length){ list.classList.remove('open'); return; }
+    matches.forEach(function(m){
+      var div = document.createElement('div');
+      div.className = 'ac-item';
+      div.textContent = m;
+      div.addEventListener('mousedown', function(e){
+        e.preventDefault();
+        inp.value = m;
+        list.classList.remove('open');
+      });
+      list.appendChild(div);
+    });
+    list.classList.add('open');
+  });
+
+  inp.addEventListener('keydown', function(e){
+    var items = list.querySelectorAll('.ac-item');
+    if(!items.length) return;
+    if(e.key === 'ArrowDown'){ e.preventDefault(); selIdx = Math.min(selIdx+1, items.length-1); }
+    else if(e.key === 'ArrowUp'){ e.preventDefault(); selIdx = Math.max(selIdx-1, 0); }
+    else if(e.key === 'Enter' && selIdx >= 0){ e.preventDefault(); inp.value = items[selIdx].textContent; list.classList.remove('open'); return; }
+    items.forEach(function(it,i){ it.classList.toggle('sel', i===selIdx); });
+  });
+
+  inp.addEventListener('blur', function(){ setTimeout(function(){ list.classList.remove('open'); }, 150); });
+  inp.addEventListener('focus', function(){ if(this.value.trim().length >= 1) this.dispatchEvent(new Event('input')); });
+}
+
+setupAutocomplete('inp-from', 'ac-from');
+setupAutocomplete('inp-to', 'ac-to');
+
+// ── ROUTING ───────────────────────────────────────────────
+
+// Backend-powered routing: uses Flask /api/routes with PostGIS scoring
+async function calcRoutesBackend(sc, ec, ov, dv){
+  var routeConfigs = [
+    { key:'safety',  color:'#f5c842', label:'Safety',  weights: WEIGHT_PRESETS.safety  },
+    { key:'access',  color:'#4ab3e8', label:'Access',  weights: WEIGHT_PRESETS.access  },
+    { key:'environ', color:'#5dd87a', label:'Eco',     weights: WEIGHT_PRESETS.environ }
+  ];
+
+  for (var cfg of routeConfigs){
+    try {
+      var r = await fetch(API_BASE + '/api/routes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          origin:      { lat: sc[0], lng: sc[1] },
+          destination: { lat: ec[0], lng: ec[1] },
+          weights:     cfg.weights
+        })
+      });
+      var d = await r.json();
+      if (!d.routes || !d.routes.length) throw new Error('No routes');
+
+      // Use the top-scored route for this weight preset
+      var best = d.routes[0];
+      // Convert GeoJSON coordinates [lng,lat] → Leaflet [lat,lng]
+      var coords = best.geometry.coordinates.map(function(c){ return [c[1], c[0]]; });
+      var duration = Math.round(best.duration_s / 60);
+
+      layers[cfg.key] = L.polyline(coords, {
+        color: cfg.color, weight: 5, opacity: feat[cfg.key] ? 0.9 : 0,
+        lineCap:'round', lineJoin:'round'
+      }).addTo(map);
+
+      document.getElementById('t-'+cfg.key).textContent = Math.max(1, duration);
+      syncBadge(cfg.key);
+
+      // Show composite score
+      document.getElementById('s-'+cfg.key).textContent = best.composite_score.toFixed(2);
+    } catch(e){
+      console.warn('[AllWays] Backend route failed for ' + cfg.key + ', using fallback', e);
+      // If any single route type fails, fall back to demo for that one
+      await calcSingleRouteFallback(sc, ec, cfg);
+    }
+  }
+
+  document.getElementById('score-badges').classList.add('show');
+}
+
+// Fallback: single route via public OSRM (demo mode)
+async function calcSingleRouteFallback(sc, ec, cfg){
+  var nudges = { safety:{lat:0.0008,lng:-0.0012}, access:{lat:0,lng:0}, environ:{lat:-0.0008,lng:0.0012} };
+  var n = nudges[cfg.key] || {lat:0,lng:0};
+  try {
+    var res = await fetchOSRM(sc, ec, n.lat, n.lng);
+    layers[cfg.key] = L.polyline(res.coords, {
+      color: cfg.color, weight: 5, opacity: feat[cfg.key] ? 0.9 : 0,
+      lineCap:'round', lineJoin:'round'
+    }).addTo(map);
+    var t = cfg.key==='safety' ? Math.round(res.duration*1.2) : cfg.key==='environ' ? Math.round(res.duration*0.95) : res.duration;
+    document.getElementById('t-'+cfg.key).textContent = Math.max(1, t);
+  } catch(e){
+    layers[cfg.key] = L.polyline([sc,ec], {color: cfg.color, weight: 5, opacity: feat[cfg.key] ? 0.9 : 0}).addTo(map);
+    document.getElementById('t-'+cfg.key).textContent = Math.round(Math.sqrt((ec[0]-sc[0])**2+(ec[1]-sc[1])**2)*900);
+  }
+  syncBadge(cfg.key);
+}
+
+// Demo-mode OSRM fetch (public server)
+async function fetchOSRM(sc, ec, latNudge, lngNudge){
+  var s = [sc[0]+latNudge, sc[1]+lngNudge];
+  var url = 'https://router.project-osrm.org/route/v1/foot/'
+    + s[1]+','+s[0]+';'+ec[1]+','+ec[0]
+    + '?overview=full&geometries=geojson&alternatives=false';
+  var r = await fetch(url);
+  var d = await r.json();
+  if(!d.routes||!d.routes.length) throw new Error('No route');
+  var coords = d.routes[0].geometry.coordinates.map(function(c){return [c[1],c[0]];});
+  var durationMin = Math.round(d.routes[0].duration / 60);
+  return {coords: coords, duration: durationMin};
+}
+
+// Main routing dispatcher
+async function calcRoutes(){
+  var ov = document.getElementById('inp-from').value.trim();
+  var dv = document.getElementById('inp-to').value.trim();
+  if(!ov||!dv){ toast('Enter a start and destination'); return; }
+  document.getElementById('map-loading').classList.add('on');
+  clearRoutes();
+
+  try {
+    var coords = await Promise.all([geocode(ov), geocode(dv)]);
+    var sc = coords[0], ec = coords[1];
+    if(!sc||!ec){ toast('Location not found — try a known Ottawa spot'); document.getElementById('map-loading').classList.remove('on'); return; }
+
+    // Place start/end markers
+    pins.push(L.marker(sc,{icon:L.divIcon({className:'',iconAnchor:[8,8],html:'<div style="width:16px;height:16px;border-radius:50%;background:#1a1a22;border:3px solid #4ab3e8;box-shadow:0 0 10px #4ab3e8"></div>'})}).addTo(map).bindPopup('<b>From:</b> '+ov));
+    pins.push(L.marker(ec,{icon:L.divIcon({className:'',iconAnchor:[8,8],html:'<div style="width:16px;height:16px;border-radius:50%;background:#1a1a22;border:3px solid #f5c842;box-shadow:0 0 10px #f5c842"></div>'})}).addTo(map).bindPopup('<b>To:</b> '+dv));
+
+    // Route based on mode
+    if(backendConnected){
+      await calcRoutesBackend(sc, ec, ov, dv);
+    } else {
+      // Demo mode: 3 OSRM routes with nudges
+      var nudges = [
+        {key:'safety',  color:'#f5c842', latN: 0.0008, lngN:-0.0012},
+        {key:'access',  color:'#4ab3e8', latN: 0,      lngN: 0},
+        {key:'environ', color:'#5dd87a', latN:-0.0008, lngN: 0.0012}
+      ];
+      var results = await Promise.all(nudges.map(function(c){
+        return fetchOSRM(sc, ec, c.latN, c.lngN).catch(function(){
+          return {coords:[sc,ec], duration: Math.round(Math.sqrt((ec[0]-sc[0])**2+(ec[1]-sc[1])**2)*900)};
+        });
+      }));
+      nudges.forEach(function(c, i){
+        var res = results[i];
+        layers[c.key]=L.polyline(res.coords,{color:c.color,weight:5,opacity:feat[c.key]?0.9:0,lineCap:'round',lineJoin:'round'}).addTo(map);
+        var t = c.key==='safety' ? Math.round(res.duration*1.2) : c.key==='environ' ? Math.round(res.duration*0.95) : res.duration;
+        document.getElementById('t-'+c.key).textContent = Math.max(1, t);
+        syncBadge(c.key);
+      });
+    }
+
+    map.fitBounds(L.latLngBounds([sc,ec]).pad(0.2));
+    document.getElementById('time-badges').classList.add('show');
+  } catch(e){
+    console.error('[AllWays] Route error:', e);
+    toast('Could not load routes — check your connection');
+  }
+  document.getElementById('map-loading').classList.remove('on');
+}
+
+function clearRoutes(){
+  Object.keys(layers).forEach(function(k){map.removeLayer(layers[k]);});
+  pins.forEach(function(p){map.removeLayer(p);});
+  layers={};pins=[];
+  document.getElementById('time-badges').classList.remove('show');
+  document.getElementById('score-badges').classList.remove('show');
+  // Reset badge labels in case Allen route changed them
+  document.querySelector('#badge-safety .tbadge-lbl').textContent = 'Safety';
+  document.querySelector('#badge-access .tbadge-lbl').textContent = 'Access';
+  document.querySelector('#badge-environ .tbadge-lbl').textContent = 'Eco';
+}
+
+// ── ALLEN-DRIVEN ROUTING (with custom weights) ────────────
+async function calcRoutesWithWeights(weights){
+  var ov = document.getElementById('inp-from').value.trim();
+  var dv = document.getElementById('inp-to').value.trim();
+  if(!ov||!dv){ toast('Enter a start and destination'); return; }
+  document.getElementById('map-loading').classList.add('on');
+  clearRoutes();
+
+  try {
+    var coords = await Promise.all([geocode(ov), geocode(dv)]);
+    var sc = coords[0], ec = coords[1];
+    if(!sc||!ec){ toast('Location not found — try a known Ottawa spot'); document.getElementById('map-loading').classList.remove('on'); return; }
+
+    // Place start/end markers
+    pins.push(L.marker(sc,{icon:L.divIcon({className:'',iconAnchor:[8,8],html:'<div style="width:16px;height:16px;border-radius:50%;background:#1a1a22;border:3px solid #4ab3e8;box-shadow:0 0 10px #4ab3e8"></div>'})}).addTo(map).bindPopup('<b>From:</b> '+ov));
+    pins.push(L.marker(ec,{icon:L.divIcon({className:'',iconAnchor:[8,8],html:'<div style="width:16px;height:16px;border-radius:50%;background:#1a1a22;border:3px solid #f5c842;box-shadow:0 0 10px #f5c842"></div>'})}).addTo(map).bindPopup('<b>To:</b> '+dv));
+
+    if(backendConnected){
+      // Try scored route with Allen's custom weights
+      try {
+        var r = await fetch(API_BASE + '/api/routes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            origin: { lat: sc[0], lng: sc[1] },
+            destination: { lat: ec[0], lng: ec[1] },
+            weights: weights
+          })
+        });
+        var d = await r.json();
+        if(d.routes && d.routes.length){
+          var best = d.routes[0];
+          var crds = best.geometry.coordinates.map(function(c){ return [c[1], c[0]]; });
+          layers['allen'] = L.polyline(crds, {
+            color:'#a84ae8', weight:6, opacity:0.9, lineCap:'round', lineJoin:'round'
+          }).addTo(map);
+          document.getElementById('t-safety').textContent = Math.round(best.duration_s / 60);
+          document.getElementById('t-access').textContent = (best.composite_score * 100).toFixed(0) + '%';
+          document.getElementById('t-environ').textContent = '🤖';
+          document.querySelector('#badge-safety .tbadge-lbl').textContent = 'Time';
+          document.querySelector('#badge-access .tbadge-lbl').textContent = 'Score';
+          document.querySelector('#badge-environ .tbadge-lbl').textContent = 'Allen';
+          map.fitBounds(L.latLngBounds([sc, ec]).pad(0.2));
+          document.getElementById('time-badges').classList.add('show');
+          toast('Allen\'s route plotted!');
+          document.getElementById('map-loading').classList.remove('on');
+          return;
+        }
+      } catch(e){ console.warn('[AllWays] Backend route failed, using OSRM fallback:', e); }
+    }
+
+    // Fallback: use public OSRM with the standard 3-route display
+    var nudges = [
+      {key:'safety',  color:'#f5c842', latN: 0.0008, lngN:-0.0012},
+      {key:'access',  color:'#4ab3e8', latN: 0,      lngN: 0},
+      {key:'environ', color:'#5dd87a', latN:-0.0008, lngN: 0.0012}
+    ];
+    var results = await Promise.all(nudges.map(function(c){
+      return fetchOSRM(sc, ec, c.latN, c.lngN).catch(function(){
+        return {coords:[sc,ec], duration: Math.round(Math.sqrt((ec[0]-sc[0])**2+(ec[1]-sc[1])**2)*900)};
+      });
+    }));
+    nudges.forEach(function(c, i){
+      var res = results[i];
+      layers[c.key]=L.polyline(res.coords,{color:c.color,weight:5,opacity:feat[c.key]?0.9:0,lineCap:'round',lineJoin:'round'}).addTo(map);
+      var t = c.key==='safety' ? Math.round(res.duration*1.2) : c.key==='environ' ? Math.round(res.duration*0.95) : res.duration;
+      document.getElementById('t-'+c.key).textContent = Math.max(1, t);
+      syncBadge(c.key);
+    });
+    map.fitBounds(L.latLngBounds([sc,ec]).pad(0.2));
+    document.getElementById('time-badges').classList.add('show');
+    toast('Route plotted (Allen weights applied to display)');
+  } catch(e){
+    console.error('[AllWays] Route error:', e);
+    toast('Could not load route — check your connection');
+  }
+  document.getElementById('map-loading').classList.remove('on');
+}
+
+function toggleFeat(f){
+  feat[f]=!feat[f];
+  document.getElementById('pill-'+f).classList.toggle('off',!feat[f]);
+  var row=document.getElementById('frow-'+f);
+  row.classList.remove('on-safety','on-access','on-environ');
+  if(feat[f]) row.classList.add('on-'+f);
+  if(layers[f]) layers[f].setStyle({opacity:feat[f]?0.9:0});
+  syncBadge(f);
+}
+function syncBadge(f){document.getElementById('badge-'+f).classList.toggle('off',!feat[f]);}
+
+// ═══════════════════════════════════════════════════════════
+// MAP OVERLAY LAYERS (PostGIS → GeoJSON)
+// ═══════════════════════════════════════════════════════════
+var overlayLayers = {};  // layerName → L.geoJSON instance
+var overlayCache = {};   // layerName → GeoJSON data
+
+var LAYER_STYLES = {
+  parks_greenspace: { color: '#5dd87a', fillColor: '#5dd87a', fillOpacity: 0.15, weight: 1 },
+  sidewalks:        { color: '#7a7a9a', weight: 1.5, opacity: 0.5 },
+  transit_stops:    { color: '#f5c842', fillColor: '#f5c842', radius: 4, fillOpacity: 0.7 },
+  cycling_network:  { color: '#4ab3e8', weight: 1.5, opacity: 0.5, dashArray: '5,5' },
+  benches:          { color: '#e8a84a', fillColor: '#e8a84a', radius: 3, fillOpacity: 0.6 },
+  washrooms:        { color: '#e84a8a', fillColor: '#e84a8a', radius: 4, fillOpacity: 0.7 },
+  libraries:        { color: '#a84ae8', fillColor: '#a84ae8', radius: 5, fillOpacity: 0.8 }
+};
+
+async function toggleOverlay(layerName){
+  var chip = document.querySelector('.layer-chip[data-layer="'+layerName+'"]');
+  if(overlayLayers[layerName]){
+    // Remove
+    map.removeLayer(overlayLayers[layerName]);
+    delete overlayLayers[layerName];
+    if(chip) chip.classList.remove('on');
+    return;
+  }
+
+  // Load
+  if(chip) chip.classList.add('on');
+  try {
+    var geojson;
+    if(overlayCache[layerName]){
+      geojson = overlayCache[layerName];
+    } else {
+      var r = await fetch(API_BASE + '/api/layers/' + layerName);
+      geojson = await r.json();
+      overlayCache[layerName] = geojson;
+    }
+
+    var style = LAYER_STYLES[layerName] || { color: '#4ab3e8', weight: 1 };
+    var isPoint = layerName === 'transit_stops' || layerName === 'benches'
+               || layerName === 'washrooms' || layerName === 'libraries';
+
+    if(isPoint){
+      overlayLayers[layerName] = L.geoJSON(geojson, {
+        pointToLayer: function(feature, latlng){
+          return L.circleMarker(latlng, style);
+        }
+      }).addTo(map);
+    } else {
+      overlayLayers[layerName] = L.geoJSON(geojson, { style: style }).addTo(map);
+    }
+  } catch(e){
+    console.warn('[AllWays] Failed to load layer:', layerName, e);
+    if(chip) chip.classList.remove('on');
+    toast('Could not load ' + layerName + ' layer');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// ALLEN WEIGHTS → CUSTOM ROUTE
+// ═══════════════════════════════════════════════════════════
+var lastAllenWeights = null;
+
+function applyAllenWeights(){
+  if(!lastAllenWeights) return;
+  var ov = document.getElementById('inp-from').value.trim();
+  var dv = document.getElementById('inp-to').value.trim();
+  if(!ov || !dv){
+    toast('Enter start & destination on the Map page first');
+    goTo('map');
+    return;
+  }
+  goTo('map');
+  setTimeout(function(){ calcRoutesWithWeights(lastAllenWeights); }, 450);
+}
+
+// ═══════════════════════════════════════════════════════════
+// PAGE NAVIGATION
+// ═══════════════════════════════════════════════════════════
+var currentPage='home';
+function goTo(pageId){
+  var prev=document.getElementById('page-'+currentPage);
+  var next=document.getElementById('page-'+pageId);
+  if(pageId===currentPage) return;
+  prev.classList.add('exit-left');
+  setTimeout(function(){prev.classList.remove('active','exit-left');},380);
+  next.classList.add('active');
+  currentPage=pageId;
+  document.querySelectorAll('.nav-btn').forEach(function(b){b.classList.remove('active');});
+  var nb=document.getElementById('nav-'+pageId);
+  if(nb) nb.classList.add('active');
+  document.getElementById('allen-fab').style.display=(pageId==='map')?'flex':'none';
+  if(pageId==='map') setTimeout(function(){map.invalidateSize();},400);
+  closeSheet();
+}
+
+// ── SHEET ──────────────────────────────────────────────────
+function openSheet(){document.getElementById('sheet-features').classList.add('on');document.getElementById('backdrop').classList.add('on');document.getElementById('menu-btn').classList.add('open');}
+function closeSheet(){document.getElementById('sheet-features').classList.remove('on');document.getElementById('backdrop').classList.remove('on');document.getElementById('menu-btn').classList.remove('open');}
+
+// ═══════════════════════════════════════════════════════════
+// ALLEN AI — backend (real OpenAI) or demo (hardcoded)
+// ═══════════════════════════════════════════════════════════
+var DEMO_AI = {
+  safest:'Based on Ottawa Police data, the safest evening route avoids Rideau St east of King Edward. Prefer well-lit Sparks St or the Queen St corridor — lighting coverage is highest in Centretown and the Glebe.',
+  wheelchair:'The Queen/Albert St corridor has consistent curb cuts ideal for mobility devices. All OC Transpo Transitway stations have level boarding. Avoid ByWard Market cobblestones near York St.',
+  greenery:'The Rideau River Eastern Pathway offers the most continuous green canopy downtown. NCC Greenbelt trails minimize road crossings for cross-city trips through Nepean and Barrhaven.',
+  ice:'After snowfall, Ottawa prioritizes salting on Elgin, Bank, and Rideau St. The Rideau Centre indoor walkway connection is safest after freezing rain or ice storms.',
+  transit:'OC Transpo Route 95 (Transitway) has level boarding at every stop. The O-Train Confederation Line has elevator access at all stations — ideal for mobility-assisted travel.',
+  quick:'The most direct walking routes in Ottawa follow the grid between Elgin, Bank, and O\'Connor. Avoid the canal paths in winter — they are scenic but can add 10+ minutes.'
+};
+
+// Map chip IDs to natural-language messages for the backend
+var CHIP_MESSAGES = {
+  safest:     'I want the safest route tonight, avoiding dangerous intersections',
+  wheelchair: 'I use a wheelchair and need a fully accessible route',
+  greenery:   'I want the route with the most greenery and parks',
+  ice:        'It\'s icy outside, what route avoids slippery conditions?',
+  transit:    'What accessible transit options are available?',
+  quick:      'What\'s the quickest walking route?'
+};
+
+async function askAllen(messageOrKey){
+  var box = document.getElementById('ai-bubble');
+  box.className = 'ai-bubble thinking';
+  box.textContent = 'Allen is thinking...';
+
+  if(backendConnected){
+    // Use real AI backend
+    var userMsg = CHIP_MESSAGES[messageOrKey] || messageOrKey;
+    try {
+      var r = await fetch(API_BASE + '/api/allen', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: userMsg,
+          conversation_history: allenHistory
+        })
+      });
+      var d = await r.json();
+      if(d.error) throw new Error(d.error);
+
+      // Store history for multi-turn
+      allenHistory.push({ role: 'user', content: userMsg });
+      if(d.message) allenHistory.push(d.message);
+      // Keep history manageable
+      if(allenHistory.length > 10) allenHistory = allenHistory.slice(-10);
+
+      box.className = 'ai-bubble';
+      box.textContent = d.explanation || 'I\'ve adjusted the route weights for you.';
+
+      // Show weights if available
+      if(d.weights){
+        lastAllenWeights = d.weights;
+        var wStr = '\n\n📊 Weights: Safety ' + (d.weights.safety||0).toFixed(1)
+          + ' · Access ' + (d.weights.accessibility||0).toFixed(1)
+          + ' · Env ' + (d.weights.environment||0).toFixed(1)
+          + ' · Comfort ' + (d.weights.comfort||0).toFixed(1);
+        if(d.backend) wStr += '\n🤖 via ' + d.backend;
+        box.textContent += wStr;
+
+        // If Allen extracted locations, fill them in and auto-route
+        if(d.origin && d.destination){
+          document.getElementById('inp-from').value = d.origin;
+          document.getElementById('inp-to').value = d.destination;
+          box.textContent += '\n\n🗺️ Routing from ' + d.origin + ' → ' + d.destination + '...';
+          // Auto-navigate to map and plot the route
+          setTimeout(function(){
+            goTo('map');
+            setTimeout(function(){ calcRoutesWithWeights(lastAllenWeights); }, 500);
+          }, 1200);
+        } else {
+          // No locations — show manual apply button
+          if(d.origin){
+            document.getElementById('inp-from').value = d.origin;
+            box.textContent += '\n📍 Start: ' + d.origin + ' (enter a destination on the Map tab)';
+          }
+          if(d.destination){
+            document.getElementById('inp-to').value = d.destination;
+            box.textContent += '\n📍 Destination: ' + d.destination + ' (enter a start on the Map tab)';
+          }
+          document.getElementById('ai-apply-row').classList.add('show');
+        }
+      }
+    } catch(e){
+      console.warn('[AllWays] Allen backend error, falling back to demo:', e);
+      // Fall back to demo response
+      showDemoAllen(messageOrKey);
+    }
+  } else {
+    // Demo mode
+    showDemoAllen(messageOrKey);
+  }
+}
+
+function showDemoAllen(key){
+  var box = document.getElementById('ai-bubble');
+  setTimeout(function(){
+    box.className = 'ai-bubble';
+    box.textContent = DEMO_AI[key] || 'Great question! For personalized Ottawa routing advice, make sure you\'ve entered your start and destination on the Map page first. I can then suggest the best route type for your needs.';
+  }, 900);
+}
+
+function handleAllenInput(){
+  var val = document.getElementById('ai-input').value.trim();
+  if(!val) return;
+  document.getElementById('ai-input').value = '';
+
+  if(backendConnected){
+    // Send freeform text to real AI
+    askAllen(val);
+  } else {
+    // Demo mode: keyword matching
+    var box = document.getElementById('ai-bubble');
+    box.className = 'ai-bubble thinking';
+    box.textContent = 'Allen is thinking...';
+    var lc = val.toLowerCase();
+    var key = lc.includes('safe')?'safest':lc.includes('wheel')||lc.includes('access')?'wheelchair':lc.includes('green')||lc.includes('park')?'greenery':lc.includes('ice')||lc.includes('snow')?'ice':lc.includes('transit')||lc.includes('bus')||lc.includes('train')?'transit':lc.includes('quick')||lc.includes('fast')?'quick':null;
+    showDemoAllen(key);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// WIRE UP EVENT LISTENERS
+// ═══════════════════════════════════════════════════════════
+document.getElementById('go-btn').addEventListener('click',function(){
+  if(currentPage!=='map') goTo('map');
+  setTimeout(calcRoutes,currentPage==='map'?0:450);
+});
+document.getElementById('menu-btn').addEventListener('click',function(){
+  document.getElementById('sheet-features').classList.contains('on')?closeSheet():openSheet();
+});
+document.getElementById('backdrop').addEventListener('click',closeSheet);
+document.getElementById('close-features').addEventListener('click',closeSheet);
+document.getElementById('allen-fab').addEventListener('click',function(){goTo('allen');});
+
+document.getElementById('nav-home').addEventListener('click',function(){goTo('home');});
+document.getElementById('nav-map').addEventListener('click',function(){goTo('map');});
+document.getElementById('nav-allen').addEventListener('click',function(){goTo('allen');});
+document.getElementById('nav-feedback').addEventListener('click',function(){goTo('feedback');});
+
+document.getElementById('hc-safety').addEventListener('click',function(){goTo('map');});
+document.getElementById('hc-access').addEventListener('click',function(){goTo('map');});
+document.getElementById('hc-environ').addEventListener('click',function(){goTo('map');});
+
+document.getElementById('frow-safety').addEventListener('click',function(){toggleFeat('safety');});
+document.getElementById('frow-access').addEventListener('click',function(){toggleFeat('access');});
+document.getElementById('frow-environ').addEventListener('click',function(){toggleFeat('environ');});
+document.getElementById('pill-safety').addEventListener('click',function(){toggleFeat('safety');});
+document.getElementById('pill-access').addEventListener('click',function(){toggleFeat('access');});
+document.getElementById('pill-environ').addEventListener('click',function(){toggleFeat('environ');});
+
+document.getElementById('inp-from').addEventListener('keydown',function(e){if(e.key==='Enter'){this.blur();calcRoutes();}});
+document.getElementById('inp-to').addEventListener('keydown',function(e){if(e.key==='Enter'){this.blur();calcRoutes();}});
+
+// Allen chips
+document.getElementById('chip-safest').addEventListener('click',function(){askAllen('safest');});
+document.getElementById('chip-wheelchair').addEventListener('click',function(){askAllen('wheelchair');});
+document.getElementById('chip-greenery').addEventListener('click',function(){askAllen('greenery');});
+document.getElementById('chip-ice').addEventListener('click',function(){askAllen('ice');});
+document.getElementById('chip-transit').addEventListener('click',function(){askAllen('transit');});
+document.getElementById('chip-quick').addEventListener('click',function(){askAllen('quick');});
+
+// Allen freeform input
+document.getElementById('ai-send').addEventListener('click', handleAllenInput);
+document.getElementById('ai-input').addEventListener('keydown',function(e){if(e.key==='Enter') handleAllenInput();});
+
+// Allen apply/view buttons
+document.getElementById('ai-apply').addEventListener('click', function(){
+  if(backendConnected && lastAllenWeights) applyAllenWeights();
+  else { toast('Ask Allen a question first to get route weights'); }
+});
+document.getElementById('ai-view-map').addEventListener('click', function(){ goTo('map'); });
+
+// Layer overlay chips
+document.querySelectorAll('.layer-chip').forEach(function(chip){
+  chip.addEventListener('click', function(){
+    if(!backendConnected){ toast('Layers require the backend — run setup.sh'); return; }
+    toggleOverlay(this.dataset.layer);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════
+// FEEDBACK (with backend POST when connected)
+// ═══════════════════════════════════════════════════════════
+var fbRating=0,fbCat='';
+document.querySelectorAll('.fb-star').forEach(function(s){
+  s.addEventListener('click',function(){
+    fbRating=parseInt(this.dataset.n);
+    document.querySelectorAll('.fb-star').forEach(function(st,i){st.classList.toggle('lit',i<fbRating);});
+  });
+});
+document.querySelectorAll('.fb-cat-btn').forEach(function(btn){
+  btn.addEventListener('click',function(){
+    fbCat=this.dataset.cat;
+    document.querySelectorAll('.fb-cat-btn').forEach(function(b){b.classList.remove('sel-safety','sel-access','sel-environ');});
+    this.classList.add('sel-'+fbCat);
+  });
+});
+document.getElementById('fb-submit').addEventListener('click', async function(){
+  if(!fbRating){toast('Please choose a star rating');return;}
+  if(!fbCat){toast('Please select a route type');return;}
+
+  if(backendConnected){
+    try {
+      await fetch(API_BASE + '/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rating: fbRating,
+          route_type: fbCat,
+          name: document.getElementById('fb-name').value,
+          what_went_well: document.getElementById('fb-good').value,
+          improvements: document.getElementById('fb-improve').value,
+          other: document.getElementById('fb-other').value
+        })
+      });
+    } catch(e){ console.warn('Feedback POST failed:', e); }
+  }
+
+  document.getElementById('fb-form-body').style.display='none';
+  document.getElementById('fb-success').classList.add('show');
+});
+document.getElementById('fb-again').addEventListener('click',function(){
+  fbRating=0;fbCat='';
+  document.querySelectorAll('.fb-star').forEach(function(s){s.classList.remove('lit');});
+  document.querySelectorAll('.fb-cat-btn').forEach(function(b){b.classList.remove('sel-safety','sel-access','sel-environ');});
+  document.getElementById('fb-name').value='';
+  document.getElementById('fb-good').value='';
+  document.getElementById('fb-improve').value='';
+  document.getElementById('fb-other').value='';
+  document.getElementById('fb-success').classList.remove('show');
+  document.getElementById('fb-form-body').style.display='';
+});
+
+// init
+document.getElementById('allen-fab').style.display='none';
+
+// ── TOAST ─────────────────────────────────────────────────
+function toast(msg){
+  var t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  clearTimeout(t._t);
+  t._t=setTimeout(function(){t.classList.remove('show');},2600);
+}
+</script>
+</body>
+</html>
