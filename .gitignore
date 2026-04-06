@@ -1,0 +1,30 @@
+# Python virtual environments
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+
+# API keys — NEVER commit these
+.env
+.env.local
+.env.*.local
+
+# Node / React
+node_modules/
+frontend/build/
+frontend/.env
+
+# Large geographic data files
+*.osm.pbf
+*.osrm
+*.osrm.*
+data/raw/
+osrm_data/
+
+# IDE and OS files
+.DS_Store
+*.swp
+.vscode/settings.json
+*.log
+
