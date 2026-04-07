@@ -10,7 +10,7 @@
 <style>
 :root{
   --bg:#1a1a22;--panel:#222230;--card:#28283a;--border:#3a3a50;
-  --text:#e8e8f0;--muted:#7a7a9a;
+  --text:#cfd3e6;--muted:#cfd3e6;
   --safety:#f5c842;--access:#4ab3e8;--environ:#5dd87a;
   --nav-h:62px;--top-h:52px;--phone-w:390px;--phone-h:720px;
   --scale:0.72;
@@ -49,7 +49,7 @@ body{background:#181820;display:flex;align-items:flex-start;justify-content:cent
 .topbar{
   height:var(--top-h);background:var(--panel);
   border-bottom:1px solid var(--border);
-  display:flex;align-items:center;padding:0 18px;gap:10px;
+  display:flex;align-items:left;padding:0 18px;gap:10px;
   flex-shrink:0;z-index:300;padding-top:8px;
 }
 .menu-btn{width:38px;height:38px;border-radius:10px;background:var(--card);border:1px solid var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;flex-shrink:0;transition:background 0.2s;}
@@ -62,6 +62,20 @@ body{background:#181820;display:flex;align-items:flex-start;justify-content:cent
 .app-title em{color:var(--access);font-style:normal;}
 .go-btn{background:var(--access);border:none;border-radius:10px;padding:8px 14px;color:#05080d;font-family:'Syne',sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer;flex-shrink:0;}
 .go-btn:active{opacity:0.7;}
+
+.app-title-wrap{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  flex:1;
+}
+
+.app-logo{
+  height:60px;   /* adjust size here */
+  width:auto;
+  object-fit:contain;
+}
 
 /* ── PAGES CONTAINER ── */
 .pages{flex:1;position:relative;overflow:hidden;display:flex;flex-direction:column;}
@@ -415,7 +429,7 @@ body{background:#181820;display:flex;align-items:flex-start;justify-content:cent
   --card:#161a25;
   --card-2:#1c2130;
   --border:rgba(255,255,255,0.08);
-  --text:#f6f7fb;
+  --text:#cfd3e6;
   --muted:#99a0b8;
   --primary:#7c5cff;
   --primary-2:#6b8dff;
@@ -623,7 +637,7 @@ body{
 }
 .ai-apply-btn{padding:12px;border-radius:16px;}
 .ai-view-btn,.fb-again-btn,.dir-tts-btn{
-  background:rgba(22,26,37,0.98);border:1px solid rgba(255,255,255,0.08);border-radius:16px;color:#f6f7fb;
+  background:rgba(22,26,37,0.98);border:1px solid rgba(255,255,255,0.08);border-radius:16px;color:var(--text);
 }
 .feedback-body{gap:14px;padding-top:0;padding-bottom:18px;}
 .fb-stars{justify-content:space-between;}
@@ -691,12 +705,19 @@ body{
 <div class="phone-wrap">
 <div class="phone">
 
-  <!-- TOP BAR -->
-  <div class="topbar">
-    <button class="menu-btn" id="menu-btn"><span></span><span></span><span></span></button>
+<div class="topbar">
+  <button class="menu-btn" id="menu-btn">
+    <span></span><span></span><span></span>
+  </button>
+
+  <!-- NEW: Logo + Title wrapper -->
+  <div class="app-title-wrap">
+    <img src="logo.png" alt="logo" class="app-logo">
     <div class="app-title">All<em>Ways</em> Ottawa</div>
-    <button class="go-btn" id="go-btn">Go</button>
   </div>
+
+  <button class="go-btn" id="go-btn">Go</button>
+</div>
 
   <!-- PAGES -->
   <div class="pages" id="pages">
@@ -705,9 +726,7 @@ body{
     <div class="page active" id="page-home">
       <div class="home-page">
         <div class="home-hero">
-          <div class="home-hero-icon">🗺️</div>
-          <div class="home-hero-title">All<em>Ways</em> Ottawa</div>
-          <div class="home-hero-sub">Smart navigation built for every Ottawan.<br>Choose your route by what matters to you.</div>
+          <div class="home-hero-sub">Smart navigation built for everyone.<br>Choose your route by what matters to you.</div>
         </div>
         <div>
           <div class="home-section-title">Route Types</div>
